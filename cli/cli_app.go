@@ -103,6 +103,7 @@ const CMD_TERRAGRUNT_READ_CONFIG = "terragrunt-read-config"
 const CMD_HCLFMT = "hclfmt"
 const CMD_AWS_PROVIDER_PATCH = "aws-provider-patch"
 const CMD_RENDER_JSON = "render-json"
+const CMD_GROUPS_JSON = "groups-json"
 
 // START: Constants useful for multimodule command handling
 const CMD_RUN_ALL = "run-all"
@@ -380,6 +381,15 @@ func RunTerragrunt(terragruntOptions *options.TerragruntOptions) error {
 		return runRenderJSON(terragruntOptions, terragruntConfig)
 	}
 
+	if shouldRunGroupsJSON(terragruntOptions) {
+		js, err := runGraphDependenciesGroups(terragruntOptions)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%s\n", js)
+		return nil
+	}
+
 	terragruntOptionsClone := terragruntOptions.Clone(terragruntOptions.TerragruntConfigPath)
 	terragruntOptionsClone.TerraformCommand = CMD_TERRAGRUNT_READ_CONFIG
 
@@ -569,6 +579,21 @@ func runGraphDependencies(terragruntOptions *options.TerragruntOptions) error {
 	return nil
 }
 
+// Run graph dependencies returns the dependency graph
+func runGraphDependenciesGroups(terragruntOptions *options.TerragruntOptions) (string, error) {
+	stack, err := configstack.FindStackInSubfolders(terragruntOptions)
+	if err != nil {
+		return "", err
+	}
+
+	terragruntOptions.Logger.Debugf("%s", stack.String())
+	js, err := stack.JsonModuleDeployOrder(terragruntOptions.Logger, terragruntOptions.TerraformCommand);
+	if err != nil {
+		return "", err
+	}
+	return js, nil
+}
+
 func shouldPrintTerraformHelp(terragruntOptions *options.TerragruntOptions) bool {
 	for _, tfHelpFlag := range TERRAFORM_HELP_FLAGS {
 		if util.ListContainsElement(terragruntOptions.TerraformCliArgs, tfHelpFlag) {
@@ -596,6 +621,10 @@ func shouldRunHCLFmt(terragruntOptions *options.TerragruntOptions) bool {
 
 func shouldRunRenderJSON(terragruntOptions *options.TerragruntOptions) bool {
 	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_RENDER_JSON)
+}
+
+func shouldRunGroupsJSON(terragruntOptions *options.TerragruntOptions) bool {
+	return util.ListContainsElement(terragruntOptions.TerraformCliArgs, CMD_GROUPS_JSON)
 }
 
 func shouldApplyAwsProviderPatch(terragruntOptions *options.TerragruntOptions) bool {
